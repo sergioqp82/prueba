@@ -1,8 +1,152 @@
-<html>
+<html lang="en">
 <head>
-<title>sitio de prueba</title>
+	<meta charset="UTF-8" />
+	<title>Consulta RS Vig o ETR de medicamentos</title>
+<script>
+
+var vigentes;
+var entramite;
+// Defining async function
+async function getListadoGeneral(url,intento) {
+    // Storing response
+    const response = await fetch(url);
+    // Storing data in form of JSON
+    var data = await response.json();
+    if (response) {
+        hideloader();
+    }
+    if (data != "") {
+		switch (intento) {
+			case 1:
+				vigentes=data;
+				getListadoGeneral(url.replace("i7cb-raxc","vgr4-gemg"),2);
+				break;
+			case 2:
+				entramite=data;
+				break;
+			default:
+				break;
+		}
+	}
+	if(intento==2){
+		mostrarListadoGeneral();
+	}
+}
+
+async function consultarDetalle(expediente,estadoregistro){
+
+	let url;
+	let salida="";
+	if(estadoregistro=="Vigente"){
+		url="https://www.datos.gov.co/resource/i7cb-raxc.json?";
+	}else{
+		url="https://www.datos.gov.co/resource/vgr4-gemg.json?";
+	}
+	// Consultamos datos
+	columnas=['expediente','producto','registrosanitario','viaadministracion','formafarmaceutica','titular','modalidad'];
+	let urlSubconsulta=url+"$select=distinct%20"+columnas.toString()+"&expediente="+expediente;
+    const response = await fetch(urlSubconsulta);
+    var data = await response.json();
+    if (data != "") {
+		salida+="<table border=1>";
+		for(let c of columnas){
+			if(c=="titular"){
+				salida+="<tr><td style='background-color:#23BAC4'>"+c+"</td><td style='background-color:#23BAC4'>"+data[0][c]+"</td></tr>";
+			}else{
+				salida+="<tr><td>"+c+"</td><td>"+data[0][c]+"</td></tr>";
+			}
+		}
+		salida+="</table><br/>";
+	}else{
+		alert("error en la red, inténtelo de nuevo");
+	}
+	// Consultamos principio activo
+	let urlPrincipios=url+"$select=distinct%20principioactivo,cantidad&expediente="+expediente;
+    const response2 = await fetch(urlPrincipios);
+    var data = await response2.json();
+    if (data != "") {
+		salida+="<table border=1><tr><td>principio</td><td>cantidad</td></tr>";
+		for(let r of data.values()){
+			salida+="<tr><td>"+r['principioactivo']+"</td><td>"+(r['cantidad']/100000)+"</td></tr>";
+		}
+		salida+="</table><br />";
+	}else{
+		alert("error en la red, inténtelo de nuevo");
+	}
+	
+	// Consultamos datos laboratorios
+	columnas=['nombrerol','tiporol'];
+	urlSubconsulta=url+"$select=distinct%20"+columnas.toString()+"&expediente="+expediente;
+    const response3 = await fetch(urlSubconsulta);
+    var data = await response3.json();
+    if (data != "") {
+		salida+="<table border=1><tr><td>nombrerol</td><td>tiporol</td></tr>";
+		for(let r of data.values()){
+			salida+="<tr>";
+			for(let c of columnas.values()){
+				salida+="<td  style='background-color:#23BAC4'>"+r[c]+"</td>";
+			}
+			salida+="</tr>";
+		}
+		salida+="</table>";
+	}else{
+		alert("error en la red, inténtelo de nuevo");
+	}
+	
+	let div=document.getElementById("detalle");
+	div.innerHTML=salida;
+
+}
+
+// Function to hide the loader
+function hideloader() {
+    //    document.getElementById('loading').style.display = 'none';
+}
+
+// Function to define innerHTML for HTML table
+function mostrarListadoGeneral() {
+	let salida="<table border=1><tr><td>expediente</td><td>producto</td><td>invima</td><td>estado invima</td></tr>";
+	if(typeof vigentes !== "undefined"){
+		for (let r of vigentes.values()) {
+			salida+="<tr><td><a href=\"#\" onclick=\"consultarDetalle('"+r['expediente']+"','"+r['estadoregistro']+"')\">"+r['expediente']+"</a></td><td>"+r['producto']+"</td><td>"+r['registrosanitario']+"</td><td>"+r['estadoregistro']+"</td></tr>";
+		}
+	}
+	if(typeof entramite !== "undefined"){
+		for (let r of entramite.values()) {
+			salida+="<tr><td><a href=\"#\" onclick=\"consultarDetalle('"+r['expediente']+"')\">"+r['expediente']+"</a></td><td>"+r['producto']+"</td><td>"+r['registrosanitario']+"</td><td>"+r['estadoregistro']+"</td></tr>";
+		}
+		}
+	
+	salida+="</table>";
+	document.getElementById("general").innerHTML=salida;
+}
+
+function consultar() {
+	let columnas="expediente,producto,registrosanitario,estadoregistro";
+	criterio = document.getElementById("entrada").value;
+  	getListadoGeneral("https://www.datos.gov.co/resource/i7cb-raxc.json?$select=distinct%20"+columnas+"&$where=upper(principioactivo)%20like%20upper(%27%25"+criterio+"%25%27)%20and%20estadocum=%27Activo%27%20and%20muestramedica=%27No%27", 1);
+}	
+</script>
 </head>
 <body>
-Hola mundo
+	<h1>Sistema de consulta de registros sanitarios de medicamentos:</h1>
+	<h3>Por favor tenga en cuenta que este sistema solo funciona para medicamentos con estado de registro "Vigente" o "En trámite de renovación" con CUM activo y que no es muestra médica</h3>
+	<h2>Consultar por:</h2>
+	<h3>principio activo</h3>
+	<input id="entrada" type="text" />
+	<br/>
+	<button onclick="consultar();">Consultar</button>
+	<br><br>
+	<h2>Resultado:</h2>
+	<table borer=1 style="width:100%">
+	<tr>
+	<td align='center'><h2>Listado General</h2></td>
+	<td align='center'><h2>Detalle</h2></td>
+	</tr>
+	<tr>
+	<td style="width:50%"><div id="general" style="width: 100%; height: 500px; overflow-y: scroll;"></div></td>
+	<td style="width:50%"><div style="width: 100%; height: 500px; overflow-y: scroll;" id="detalle"></div></td>
+	</tr>
+	</table>
 </body>
 </html>
